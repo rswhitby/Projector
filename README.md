@@ -4,7 +4,7 @@ An interactive demonstration of parallel projection, built for ARCH 5511 *Constr
 
 Two linked panels. The left shows the apparatus: an object, a bounding box, a picture plane, and the projector lines running from the object to that plane. The right shows the drawing those projectors produce. Changing the direction of the projectors — or the tilt of the plane relative to them — is the only variable, and the taxonomy of projection types falls out of it.
 
-Single HTML file, no build step, no dependencies. All projection, hidden-line, and silhouette geometry is computed from scratch in about 700 lines of vanilla JavaScript on a 2D canvas.
+Single HTML file, no build step, no dependencies. All projection, hidden-surface, and silhouette geometry is computed from scratch in about 700 lines of vanilla JavaScript on a 2D canvas.
 
 ## Running it
 
@@ -50,7 +50,7 @@ Geometry is built by two generators. `extrude` sweeps a set of 2D loops along a 
 
 Faces are stored as sets of loops so that a face can carry holes, and are filled even-odd. Face orientation is made globally consistent by computing the signed volume of the mesh and flipping the normals if it comes out negative.
 
-Every edge is tagged hard or smooth. Hard edges are always drawn. Smooth edges are tessellation seams on a curved surface and are drawn only where the two adjacent faces disagree about facing the projectors — a silhouette test evaluated per frame, per projection direction. Hidden-line removal is a painter's algorithm: faces sorted back to front along the projector direction, filled opaque, then stroked. Hidden lines are drawn dashed underneath before the fills cover them.
+Every edge is tagged hard or smooth. Hard edges are always drawn. Smooth edges are tessellation seams on a curved surface and are drawn only where the two adjacent faces disagree about facing the projectors — a silhouette test evaluated per frame, per projection direction. Hidden-line removal is a painter's algorithm: faces sorted back to front along the projector direction, filled opaque, then stroked.
 
 A single `proj(P, spec)` function handles every projection in the app. A spec carries a plane origin, normal, and two in-plane basis vectors, plus either a fixed projector direction (parallel) or a station point (perspective). Everything else — multiview, axonometric, cavalier, cabinet, military, perspective — is a different spec passed to the same function.
 
