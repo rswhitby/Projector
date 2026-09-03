@@ -406,14 +406,17 @@ function specAxono(az,el,C,R){
   return {kind:"par",d:f,n:mul(f,-1),u,v:norm(cross(u,f)),O:add(C,mul(f,R*1.7)),size:R*1.5,label:"picture plane"};
 }
 function specOblique(o,C,R){
+  /* The plane sits on the eye side of the object, one clear step off it, and slides
+     with the projectors so the image lands on it. Third angle, as everywhere else. */
+  const planeAt=(d,n)=>add(C,mul(d,-R*1.7/Math.abs(dot(d,n))));
   if(o.face==="front"){
-    const d=norm(V(-o.L*Math.cos(rad(o.alpha)),1,-o.L*Math.sin(rad(o.alpha))));
-    return {kind:"par",d,n:V(0,-1,0),u:V(1,0,0),v:V(0,0,1),O:add(C,V(0,R*1.7,0)),size:R*1.5,label:"plane ∥ front face"};
+    const d=norm(V(-o.L*Math.cos(rad(o.alpha)),1,-o.L*Math.sin(rad(o.alpha)))),n=V(0,-1,0);
+    return {kind:"par",d,n,u:V(1,0,0),v:V(0,0,1),O:planeAt(d,n),size:R*1.75,label:"plane ∥ front face"};
   }
   const b=rad(o.beta);
-  return {kind:"par",d:norm(V(-o.L*Math.sin(b),o.L*Math.cos(b),-1)),n:V(0,0,1),
-    u:V(Math.cos(b),Math.sin(b),0),v:V(-Math.sin(b),Math.cos(b),0),
-    O:add(C,V(0,0,-R*1.7)),size:R*1.5,label:"plane ∥ plan"};
+  const d=norm(V(-o.L*Math.sin(b),o.L*Math.cos(b),-1)),n=V(0,0,1);
+  return {kind:"par",d,n,u:V(Math.cos(b),Math.sin(b),0),v:V(-Math.sin(b),Math.cos(b),0),
+    O:planeAt(d,n),size:R*1.75,label:"plane ∥ plan"};
 }
 function specPersp(p,C){
   const a=rad(p.az),e=rad(p.el);
