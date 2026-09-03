@@ -535,7 +535,9 @@ function drawSetup(){
   for(const sp of specs) sp.keys=visibleEdges(GEO,dirOf(sp.s));
 
   if(S.show.proj){
-    const fade=S.mode==="multiview"?(1-S.mv.unfold):1;
+    /* Thin the projectors as the box opens, but never to nothing: the link
+       between object and view is the point of the unfold. */
+    const fade=S.mode==="multiview"?(1-0.62*S.mv.unfold):1;
     if(fade>0.02){
       ctx.save();ctx.strokeStyle=ACC;ctx.globalAlpha=0.42*fade;ctx.lineWidth=0.9;ctx.setLineDash([5,3]);
       ctx.beginPath();
@@ -628,6 +630,12 @@ function drawMultiview(ctx,w,h){
   if(S.mv.top) views.push({k:kT,pts:GEO.verts.map(p=>T(p.x-c.x,p.y-c.y+OY)),dep:GEO.verts.map(p=>-p.z),lab:"top",lp:T(0,OY-D/2)});
   if(S.mv.right) views.push({k:kR,pts:GEO.verts.map(p=>T(p.y-c.y+OX,p.z-c.z)),dep:GEO.verts.map(p=>-p.x),lab:"right side",lp:T(OX,-H/2)});
 
+  for(const v of views){
+    drawSolid(ctx,v.pts,v.dep,GEO,v.k,{lw:1.6});
+    ctx.fillStyle=INK2;ctx.font="10px ui-monospace,monospace";ctx.fillText(v.lab,v.lp.x-14,v.lp.y+14);
+  }
+  /* Transfers and miter go on top: the view fills are opaque, so drawing them
+     first would erase every stretch that crosses a view. */
   if(S.mv.constr){
     const uniq=a=>[...new Set(a.map(v=>Math.round(v*200)/200))];
     ctx.save();ctx.strokeStyle="#cdc9bf";ctx.lineWidth=0.8;ctx.setLineDash([6,3]);ctx.beginPath();
@@ -644,10 +652,6 @@ function drawMultiview(ctx,w,h){
     ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
     ctx.fillStyle=ACC;ctx.font="10px ui-monospace,monospace";ctx.fillText("45° miter",b.x+4,b.y-2);
     ctx.restore();
-  }
-  for(const v of views){
-    drawSolid(ctx,v.pts,v.dep,GEO,v.k,{lw:1.6});
-    ctx.fillStyle=INK2;ctx.font="10px ui-monospace,monospace";ctx.fillText(v.lab,v.lp.x-14,v.lp.y+14);
   }
   document.getElementById("scaleRead").textContent="1 unit = "+sc.toFixed(0)+" px · third angle";
 }
