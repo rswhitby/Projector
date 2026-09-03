@@ -26,6 +26,10 @@
   .panel h2{margin:0;padding:8px 14px;font-family:var(--mono);font-size:11px;font-weight:500;
     color:var(--ink-2);border-bottom:1px solid var(--rule-2);display:flex;justify-content:space-between;gap:10px}
   .panel h2 span{color:var(--ink)}
+  .panel h2 .h2r{display:flex;align-items:center;gap:9px}
+  .panel h2 button{font:inherit;font-family:var(--mono);font-size:11px;line-height:1.5;padding:1px 7px;
+    background:transparent;border:1px solid var(--rule);color:var(--ink-2);cursor:pointer;border-radius:2px}
+  .panel h2 button:hover{border-color:var(--ink-2);color:var(--ink)}
   canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
   canvas.static{cursor:default}
   .foot{padding:8px 14px;border-top:1px solid var(--rule-2);font-family:var(--mono);
@@ -167,7 +171,7 @@
   </aside>
 
   <section class="panel">
-    <h2>Apparatus <span id="camRead">orbit —</span></h2>
+    <h2>Apparatus <span class="h2r"><span id="camRead">orbit —</span><button type="button" id="camReset" title="Return the apparatus to its default orbit and zoom">reset view</button></span></h2>
     <canvas id="setup"></canvas>
     <div class="foot" id="setupFoot"></div>
   </section>
@@ -381,12 +385,13 @@ const OBJECTS={
 };
 
 /* ---------- state ---------- */
+const CAM0={az:-58,el:20,zoom:1};
 const S={obj:"lblock",mode:"axono",az:45,el:35.264,
   obl:{face:"front",alpha:45,beta:45,L:1},
   psp:{az:40,el:15,dist:12},
   mv:{unfold:0,front:true,top:true,right:true,constr:true},
   show:{proj:true,plane:true,box:true,axes:true,hidden:true},
-  cam:{az:-58,el:20,zoom:1}};
+  cam:{...CAM0}};
 let GEO,B;
 function setObj(k){S.obj=k;GEO=OBJECTS[k]();B=bounds(GEO);}
 function bounds(g){
@@ -756,6 +761,7 @@ C1.addEventListener("pointermove",e=>{
   S.cam.el=Math.max(-88,Math.min(88,S.cam.el+(e.clientY-drag.y)*0.35));
   drag={x:e.clientX,y:e.clientY};drawSetup();});
 ["pointerup","pointercancel","pointerleave"].forEach(ev=>C1.addEventListener(ev,()=>{drag=null;C1.style.cursor="grab";}));
+document.getElementById("camReset").addEventListener("click",()=>{Object.assign(S.cam,CAM0);drawSetup();});
 C1.addEventListener("wheel",e=>{e.preventDefault();
   S.cam.zoom=Math.max(0.35,Math.min(3,S.cam.zoom*(e.deltaY>0?0.92:1.08)));drawSetup();},{passive:false});
 
