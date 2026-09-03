@@ -408,7 +408,9 @@ setObj("lblock");
 function specAxono(az,el,C,R){
   const f=norm(V(-Math.cos(rad(el))*Math.cos(rad(az)),-Math.cos(rad(el))*Math.sin(rad(az)),-Math.sin(rad(el))));
   const u=norm(V(-Math.sin(rad(az)),Math.cos(rad(az)),0));
-  return {kind:"par",d:f,n:mul(f,-1),u,v:norm(cross(u,f)),O:add(C,mul(f,R*1.7)),size:R*1.5,label:"picture plane"};
+  /* Plane on the eye side, like the oblique specs: raising the elevation must
+     lift the plane toward the eye, not drop it away from one. */
+  return {kind:"par",d:f,n:mul(f,-1),u,v:norm(cross(u,f)),O:add(C,mul(f,-R*1.7)),size:R*1.5,label:"picture plane"};
 }
 function specOblique(o,C,R){
   /* The plane sits on the eye side of the object, one clear step off it, and slides
