@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The direction of the projectors — ARCH 5511</title>
+<style>
+  :root{
+    --paper:#fbfaf7; --sheet:#ffffff; --ink:#16181c; --ink-2:#5c6068;
+    --rule:#d6d2c8; --rule-2:#e8e5dd; --accent:#c2341c;
+    --grotesk:"Helvetica Neue",Inter,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--grotesk);
+    font-size:14px;line-height:1.45;display:flex;flex-direction:column;overflow:hidden}
+  header{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;padding:10px 18px;
+    border-bottom:1px solid var(--rule);background:var(--sheet)}
+  header h1{font-size:15px;font-weight:600;margin:0;letter-spacing:-0.01em}
+  header .sub{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+  main{flex:1;display:grid;grid-template-columns:252px 1fr 1fr;min-height:0}
+  aside{border-right:1px solid var(--rule);background:var(--sheet);overflow-y:auto;padding:14px 14px 40px}
+  .panel{display:grid;grid-template-rows:auto 1fr auto;min-height:0;border-right:1px solid var(--rule)}
+  .panel:last-child{border-right:none}
+  .panel h2{margin:0;padding:8px 14px;font-family:var(--mono);font-size:11px;font-weight:500;
+    color:var(--ink-2);border-bottom:1px solid var(--rule-2);display:flex;justify-content:space-between;gap:10px}
+  .panel h2 span{color:var(--ink)}
+  canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+  canvas.static{cursor:default}
+  .foot{padding:8px 14px;border-top:1px solid var(--rule-2);font-family:var(--mono);
+    font-size:11px;color:var(--ink-2);min-height:34px}
+  .foot b{color:var(--ink);font-weight:500}
+  .grp{margin-bottom:18px}
+  .grp>h3{margin:0 0 8px;font-family:var(--mono);font-size:11px;font-weight:500;color:var(--ink-2);
+    padding-bottom:5px;border-bottom:1px solid var(--rule-2)}
+  .seg{display:flex;flex-wrap:wrap;gap:4px}
+  .seg+.seg{margin-top:5px}
+  .seg button{font:inherit;font-size:12px;padding:4px 8px;background:transparent;
+    border:1px solid var(--rule);color:var(--ink-2);cursor:pointer;border-radius:2px}
+  .seg button:hover{border-color:var(--ink-2)}
+  .seg button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--sheet)}
+  .seg.accent button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent)}
+  label.row{display:block;margin:9px 0}
+  label.row .lab{display:flex;justify-content:space-between;font-family:var(--mono);
+    font-size:11px;color:var(--ink-2);margin-bottom:2px}
+  label.row .lab b{color:var(--ink);font-weight:500}
+  input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+  .chk{display:flex;align-items:center;gap:7px;margin:5px 0;font-size:12px;color:var(--ink-2)}
+  .chk input{accent-color:var(--accent);margin:0}
+  .note{font-size:11.5px;color:var(--ink-2);margin:10px 0 0}
+  .hide{display:none !important}
+  .lineage{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+  .lineage em{font-style:normal;color:var(--accent)}
+  @media (max-width:1000px){
+    body{overflow:auto}
+    main{grid-template-columns:1fr}
+    aside{border-right:none;border-bottom:1px solid var(--rule)}
+    .panel{border-right:none;border-bottom:1px solid var(--rule);height:70vh}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>The direction of the projectors</h1>
+  <div class="sub">ARCH 5511 · parallel projection: orthographic and oblique</div>
+</header>
+
+<main>
+  <aside>
+    <div class="grp">
+      <h3>Object</h3>
+      <div class="seg" id="objSeg">
+        <button data-v="cube">Cube</button>
+        <button data-v="lblock">L-block</button>
+        <button data-v="step">Step</button>
+        <button data-v="tee">Tee</button>
+        <button data-v="cyl">Cylinder</button>
+        <button data-v="tube">Tube</button>
+        <button data-v="plate">Plate</button>
+        <button data-v="link">Link</button>
+        <button data-v="bracket">Bracket</button>
+        <button data-v="knob">Knob</button>
+        <button data-v="torus">Torus</button>
+        <button data-v="flange">Flange</button>
+      </div>
+      <p class="note">A curved surface has no edges on it. What you see as its outline is a silhouette, and the silhouette moves when the projectors turn — it belongs to the drawing, not to the object.</p>
+    </div>
+
+    <div class="grp">
+      <h3>Projection</h3>
+      <div class="seg accent" id="modeSeg">
+        <button data-v="multiview">Multiview</button>
+        <button data-v="axono">Axonometric</button>
+        <button data-v="oblique">Oblique</button>
+        <button data-v="persp">Perspective</button>
+      </div>
+    </div>
+
+    <div class="grp" data-mode="multiview">
+      <h3>Glass box</h3>
+      <label class="row"><span class="lab">Unfold the box <b id="unfoldV">0%</b></span>
+        <input type="range" id="unfold" min="0" max="1" step="0.01" value="0"></label>
+      <div class="chk"><input type="checkbox" id="mvFront" checked><label for="mvFront">Front plane</label></div>
+      <div class="chk"><input type="checkbox" id="mvTop" checked><label for="mvTop">Top plane</label></div>
+      <div class="chk"><input type="checkbox" id="mvRight" checked><label for="mvRight">Right plane</label></div>
+      <div class="chk"><input type="checkbox" id="mvConstr" checked><label for="mvConstr">Miter line and transfers</label></div>
+      <p class="note">Three orthographic projections, each with projectors normal to its own plane. Unfolding the box is the sheet layout. Planes sit between the eye and the object: third angle.</p>
+    </div>
+
+    <div class="grp" data-mode="axono">
+      <h3>Direction of view</h3>
+      <div class="seg" id="axoPre">
+        <button data-v="iso">Isometric</button>
+        <button data-v="di">Dimetric</button>
+        <button data-v="tri">Trimetric</button>
+        <button data-v="front">Front</button>
+      </div>
+      <label class="row"><span class="lab">Azimuth <b id="azV">45°</b></span>
+        <input type="range" id="az" min="-180" max="180" step="0.5" value="45"></label>
+      <label class="row"><span class="lab">Elevation <b id="elV">35.3°</b></span>
+        <input type="range" id="el" min="-89" max="89" step="0.1" value="35.264"></label>
+      <p class="note">Projectors stay parallel and stay normal to the plane. Only the plane turns. Azimuth 0, elevation 0 recovers a single orthographic view.</p>
+    </div>
+
+    <div class="grp" data-mode="oblique">
+      <h3>Plane held true</h3>
+      <div class="seg" id="oblFace">
+        <button data-v="front">Front face</button>
+        <button data-v="top">Plan</button>
+      </div>
+      <div class="seg" id="oblPre">
+        <button data-v="cav">Cavalier</button>
+        <button data-v="cab">Cabinet</button>
+        <button data-v="mil">Military</button>
+      </div>
+      <label class="row" id="rowAlpha"><span class="lab">Receding angle <b id="alphaV">45°</b></span>
+        <input type="range" id="alpha" min="0" max="90" step="1" value="45"></label>
+      <label class="row" id="rowBeta"><span class="lab">Plan rotation <b id="betaV">45°</b></span>
+        <input type="range" id="beta" min="0" max="90" step="1" value="45"></label>
+      <label class="row"><span class="lab">Depth ratio <b id="LV">1.00</b></span>
+        <input type="range" id="L" min="0" max="1.2" step="0.01" value="1"></label>
+      <p class="note">Projectors are parallel but no longer normal to the plane. One face stays true at full scale; the depth ratio is a convention, not a measurement. Circles on the true face stay circles.</p>
+    </div>
+
+    <div class="grp" data-mode="persp">
+      <h3>Station point</h3>
+      <label class="row"><span class="lab">Distance from object <b id="distV">12.0</b></span>
+        <input type="range" id="dist" min="4" max="60" step="0.5" value="12"></label>
+      <label class="row"><span class="lab">Azimuth <b id="pazV">40°</b></span>
+        <input type="range" id="paz" min="-180" max="180" step="0.5" value="40"></label>
+      <label class="row"><span class="lab">Elevation <b id="pelV">15°</b></span>
+        <input type="range" id="pel" min="-89" max="89" step="0.5" value="15"></label>
+      <p class="note">Projectors converge on a point. Push the station point away and the pencil of projectors flattens toward parallel.</p>
+    </div>
+
+    <div class="grp">
+      <h3>Apparatus</h3>
+      <div class="chk"><input type="checkbox" id="sProj" checked><label for="sProj">Projector lines</label></div>
+      <div class="chk"><input type="checkbox" id="sPlane" checked><label for="sPlane">Picture plane</label></div>
+      <div class="chk"><input type="checkbox" id="sBox" checked><label for="sBox">Bounding box</label></div>
+      <div class="chk"><input type="checkbox" id="sAxes" checked><label for="sAxes">Axis triad</label></div>
+      <div class="chk"><input type="checkbox" id="sHid" checked><label for="sHid">Hidden lines dashed</label></div>
+      <p class="note">Drag the left view to orbit the apparatus. Scroll to zoom.</p>
+    </div>
+  </aside>
+
+  <section class="panel">
+    <h2>Apparatus <span id="camRead">orbit —</span></h2>
+    <canvas id="setup"></canvas>
+    <div class="foot" id="setupFoot"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Resulting drawing <span id="scaleRead"></span></h2>
+    <canvas id="result" class="static"></canvas>
+    <div class="foot"><div class="lineage" id="lineage"></div><div id="readout" style="margin-top:4px"></div></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+/* ---------- vectors ---------- */
+const V=(x,y,z)=>({x,y,z});
+const add=(a,b)=>V(a.x+b.x,a.y+b.y,a.z+b.z);
+const sub=(a,b)=>V(a.x-b.x,a.y-b.y,a.z-b.z);
+const mul=(a,s)=>V(a.x*s,a.y*s,a.z*s);
+const dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
+const cross=(a,b)=>V(a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x);
+const vlen=a=>Math.hypot(a.x,a.y,a.z);
+const norm=a=>{const l=vlen(a)||1;return mul(a,1/l);};
+const rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+const ek=(a,b)=>a<b?a+"_"+b:b+"_"+a;
+
+/* ---------- mesh assembly ----------
+   faces are arrays of loops so a face can carry holes.
+   edges carry a smooth flag: smooth edges are facets of a curved
+   surface and are drawn only where they are silhouettes.        */
+function finalize(verts,faces,smoothKeys){
+  const F=faces.map(loops=>({loops}));
+  for(const f of F){
+    let nx=0,ny=0,nz=0,cx=0,cy=0,cz=0,cnt=0;
+    for(const loop of f.loops){
+      for(let i=0;i<loop.length;i++){
+        const a=verts[loop[i]],b=verts[loop[(i+1)%loop.length]];
+        nx+=(a.y-b.y)*(a.z+b.z); ny+=(a.z-b.z)*(a.x+b.x); nz+=(a.x-b.x)*(a.y+b.y);
+      }
+      for(const i of loop){cx+=verts[i].x;cy+=verts[i].y;cz+=verts[i].z;cnt++;}
+    }
+    f.n=norm(V(nx,ny,nz)); f.c=V(cx/cnt,cy/cnt,cz/cnt);
+  }
+  let vol=0;
+  for(const f of F) for(const loop of f.loops) for(let i=1;i<loop.length-1;i++)
+    vol+=dot(verts[loop[0]],cross(verts[loop[i]],verts[loop[i+1]]))/6;
+  if(vol<0) for(const f of F) f.n=mul(f.n,-1);
+  const edges=new Map();
+  for(let fi=0;fi<F.length;fi++) for(const loop of F[fi].loops)
+    for(let i=0;i<loop.length;i++){
+      const a=loop[i],b=loop[(i+1)%loop.length]; if(a===b) continue;
+      const k=ek(a,b); let e=edges.get(k);
+      if(!e){e={a,b,smooth:smoothKeys.has(k),fs:[]};edges.set(k,e);}
+      e.fs.push(fi);
+    }
+  return {verts,faces:F,edges};
+}
+function visibleEdges(g,dirAt){
+  const keys=new Set();
+  for(const [k,e] of g.edges){
+    if(!e.smooth||e.fs.length<2){keys.add(k);continue;}
+    const m=mul(add(g.verts[e.a],g.verts[e.b]),0.5), d=dirAt(m);
+    if(dot(g.faces[e.fs[0]].n,d)*dot(g.faces[e.fs[1]].n,d)<0) keys.add(k);
+  }
+  return keys;
+}
+
+/* ---------- profile helpers (2D) ---------- */
+const sArea=L=>{let a=0;for(let i=0;i<L.length;i++){const p=L[i],q=L[(i+1)%L.length];a+=p[0]*q[1]-q[0]*p[1];}return a/2;};
+function circle(cx,cy,r,n,cw){
+  const P=[];
+  for(let i=0;i<n;i++){const t=2*Math.PI*i/n*(cw?-1:1);P.push([cx+r*Math.cos(t),cy+r*Math.sin(t)]);}
+  return P;
+}
+/* rounds the corners of a polygon; returns {pts, smooth:Set} */
+function fillet(pts,radii,steps){
+  const out=[],sm=new Set(),n=pts.length;
+  for(let i=0;i<n;i++){
+    const P=pts[i],A=pts[(i-1+n)%n],C=pts[(i+1)%n],r=radii[i]||0;
+    if(r<=1e-6){out.push(P);continue;}
+    const u=[A[0]-P[0],A[1]-P[1]],w=[C[0]-P[0],C[1]-P[1]];
+    const lu=Math.hypot(u[0],u[1]),lw=Math.hypot(w[0],w[1]);
+    u[0]/=lu;u[1]/=lu;w[0]/=lw;w[1]/=lw;
+    let ang=Math.acos(Math.max(-1,Math.min(1,u[0]*w[0]+u[1]*w[1])));
+    const t=r/Math.tan(ang/2), h=r/Math.sin(ang/2);
+    const bis=[u[0]+w[0],u[1]+w[1]],lb=Math.hypot(bis[0],bis[1])||1;
+    const ctr=[P[0]+bis[0]/lb*h,P[1]+bis[1]/lb*h];
+    const t1=[P[0]+u[0]*t,P[1]+u[1]*t], t2=[P[0]+w[0]*t,P[1]+w[1]*t];
+    let a1=Math.atan2(t1[1]-ctr[1],t1[0]-ctr[0]), a2=Math.atan2(t2[1]-ctr[1],t2[0]-ctr[0]);
+    let d=a2-a1; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
+    for(let s=0;s<=steps;s++){
+      const a=a1+d*s/steps;
+      sm.add(out.length);
+      out.push([ctr[0]+r*Math.cos(a),ctr[1]+r*Math.sin(a)]);
+    }
+  }
+  return {pts:out,smooth:sm};
+}
+
+/* ---------- builders ---------- */
+function extrude(loops,axis,a0,a1,smoothSets){
+  const mk=(p,q,a)=>axis==="y"?V(p,a,q):axis==="x"?V(a,p,q):V(p,q,a);
+  const verts=[],faces=[],sk=new Set(),ringIdx=[];
+  loops=loops.map((L,li)=>{
+    let sm=smoothSets&&smoothSets[li]?new Set(smoothSets[li]):new Set();
+    const want=li===0?1:-1;
+    if(Math.sign(sArea(L))!==want){const n=L.length;L=L.slice().reverse();sm=new Set([...sm].map(i=>n-1-i));}
+    smoothSets=smoothSets||[]; smoothSets[li]=sm; return L;
+  });
+  loops.forEach((L,li)=>{
+    const lo=[],hi=[];
+    for(const p of L){lo.push(verts.length);verts.push(mk(p[0],p[1],a0));
+                      hi.push(verts.length);verts.push(mk(p[0],p[1],a1));}
+    ringIdx.push({lo,hi});
+  });
+  faces.push(ringIdx.map(r=>r.lo.slice().reverse()));
+  faces.push(ringIdx.map(r=>r.hi.slice()));
+  ringIdx.forEach((r,li)=>{
+    const n=r.lo.length, sm=smoothSets[li];
+    for(let i=0;i<n;i++){
+      const j=(i+1)%n;
+      faces.push([[r.lo[i],r.lo[j],r.hi[j],r.hi[i]]]);
+      if(sm.has(i)) sk.add(ek(r.lo[i],r.hi[i]));
+    }
+  });
+  return finalize(verts,faces,sk);
+}
+function revolve(profile,o){
+  o=o||{};
+  const segs=o.segs||48, closed=!!o.closed, sm=o.smooth||new Set();
+  const verts=[],faces=[],sk=new Set(),rings=[];
+  profile.forEach(p=>{
+    const r=p[0],z=p[1];
+    if(r<1e-6&&!closed){rings.push([verts.length]);verts.push(V(0,0,z));return;}
+    const ring=[];
+    for(let k=0;k<segs;k++){const t=2*Math.PI*k/segs;ring.push(verts.length);verts.push(V(r*Math.cos(t),r*Math.sin(t),z));}
+    rings.push(ring);
+  });
+  const nb=closed?rings.length:rings.length-1;
+  for(let i=0;i<nb;i++){
+    const A=rings[i],Bq=rings[(i+1)%rings.length];
+    if(A.length===1||Bq.length===1){
+      const poleA=A.length===1, pole=poleA?A[0]:Bq[0], ring=poleA?Bq:A;
+      for(let k=0;k<segs;k++){const k2=(k+1)%segs;
+        faces.push(poleA?[[pole,ring[k],ring[k2]]]:[[ring[k],ring[k2],pole]]);
+        sk.add(ek(pole,ring[k]));}
+    }else{
+      for(let k=0;k<segs;k++){const k2=(k+1)%segs;
+        faces.push([[A[k],A[k2],Bq[k2],Bq[k]]]);
+        sk.add(ek(A[k],Bq[k]));}
+    }
+  }
+  if(!closed){
+    const f=rings[0],l=rings[rings.length-1];
+    if(f.length>1) faces.push([f.slice().reverse()]);
+    if(l.length>1) faces.push([l.slice()]);
+  }
+  rings.forEach((ring,i)=>{
+    if(ring.length>1&&sm.has(i)) for(let k=0;k<segs;k++) sk.add(ek(ring[k],ring[(k+1)%segs]));
+  });
+  return finalize(verts,faces,sk);
+}
+function arcProfile(cx,cz,r,a0,a1,steps){
+  const P=[];for(let i=0;i<=steps;i++){const a=a0+(a1-a0)*i/steps;P.push([cx+r*Math.sin(a),cz-r*Math.cos(a)]);}return P;
+}
+
+/* ---------- objects ---------- */
+const OBJECTS={
+  cube:()=>extrude([[[-1,-1],[1,-1],[1,1],[-1,1]]],"y",-1,1),
+  lblock:()=>extrude([[[-1.4,-1],[1.4,-1],[1.4,-0.3],[-0.5,-0.3],[-0.5,1],[-1.4,1]]],"y",-0.9,0.9),
+  step:()=>extrude([[[-1.5,-1],[1.5,-1],[1.5,-0.45],[0.35,-0.45],[0.35,0.15],[-0.6,0.15],[-0.6,0.95],[-1.5,0.95]]],"y",-0.85,0.85),
+  tee:()=>extrude([[[-1.2,-1],[1.2,-1],[1.2,-0.45],[0.32,-0.45],[0.32,0.9],[-0.32,0.9],[-0.32,-0.45],[-1.2,-0.45]]],"x",-0.7,0.7),
+
+  cyl:()=>revolve([[0.95,-1.1],[0.95,1.1]],{segs:56}),
+  tube:()=>{const n=48,o=circle(0,0,1.0,n),h=circle(0,0,0.62,n,true);
+    return extrude([o,h],"z",-0.95,0.95,[new Set(o.map((_,i)=>i)),new Set(h.map((_,i)=>i))]);},
+  plate:()=>{const h=circle(0,0,0.62,40,true);
+    return extrude([[[-1.5,-1],[1.5,-1],[1.5,1],[-1.5,1]],h],"z",-0.32,0.32,[new Set(),new Set(h.map((_,i)=>i))]);},
+  link:()=>{
+    const n=28,out=[],sm=new Set();
+    for(let i=0;i<=n;i++){const a=-Math.PI/2+Math.PI*i/n;sm.add(out.length);out.push([1.15+0.72*Math.cos(a),0.72*Math.sin(a)]);}
+    for(let i=0;i<=n;i++){const a=Math.PI/2+Math.PI*i/n;sm.add(out.length);out.push([-1.15+0.72*Math.cos(a),0.72*Math.sin(a)]);}
+    const h1=circle(1.15,0,0.38,32,true),h2=circle(-1.15,0,0.38,32,true);
+    const all=i=>new Set([...Array(i).keys()]);
+    return extrude([out,h1,h2],"z",-0.26,0.26,[sm,all(32),all(32)]);
+  },
+  bracket:()=>{
+    const F=fillet([[-1.5,-1],[1.5,-1],[1.5,-0.34],[-0.52,-0.34],[-0.52,1.15],[-1.5,1.15]],
+                   [0.22,0.22,0.18,0.42,0.18,0.22],7);
+    const h1=circle(-1.01,0.55,0.30,32,true), h2=circle(0.72,-0.67,0.20,28,true);
+    const all=i=>new Set([...Array(i).keys()]);
+    return extrude([F.pts,h1,h2],"y",-0.8,0.8,[F.smooth,all(32),all(28)]);
+  },
+  knob:()=>{
+    const P=[[0,-1.05],[1.18,-1.05],[1.18,-0.90],[0.74,-0.74],[0.32,-0.62],[0.30,-0.10]];
+    const R=0.64,zc=0.46,p0=Math.asin(0.30/R);
+    const ball=arcProfile(0,zc,R,p0,Math.PI,14);
+    const sm=new Set();
+    const start=P.length;
+    ball.forEach((_,i)=>{if(i>0)sm.add(start+i);});
+    return revolve(P.concat(ball),{segs:52,smooth:sm});
+  },
+  torus:()=>{
+    const N=34,P=[],sm=new Set();
+    for(let i=0;i<N;i++){const t=2*Math.PI*i/N;sm.add(i);P.push([1.25+0.46*Math.cos(t),0.46*Math.sin(t)]);}
+    return revolve(P,{segs:40,closed:true,smooth:sm});
+  },
+  flange:()=>{
+    const P=[[0,-0.55],[1.45,-0.55],[1.45,-0.20],[0.72,-0.20],[0.72,1.10],[0.44,1.10],[0.44,-0.55]];
+    return revolve(P.map(p=>[p[0],p[1]]),{segs:52});
+  }
+};
+
+/* ---------- state ---------- */
+const S={obj:"lblock",mode:"axono",az:45,el:35.264,
+  obl:{face:"front",alpha:45,beta:45,L:1},
+  psp:{az:40,el:15,dist:12},
+  mv:{unfold:0,front:true,top:true,right:true,constr:true},
+  show:{proj:true,plane:true,box:true,axes:true,hidden:true},
+  cam:{az:-58,el:20,zoom:1}};
+let GEO,B;
+function setObj(k){S.obj=k;GEO=OBJECTS[k]();B=bounds(GEO);}
+function bounds(g){
+  const mn=V(1e9,1e9,1e9),mx=V(-1e9,-1e9,-1e9);
+  for(const p of g.verts){
+    mn.x=Math.min(mn.x,p.x);mn.y=Math.min(mn.y,p.y);mn.z=Math.min(mn.z,p.z);
+    mx.x=Math.max(mx.x,p.x);mx.y=Math.max(mx.y,p.y);mx.z=Math.max(mx.z,p.z);}
+  const c=mul(add(mn,mx),0.5),s=sub(mx,mn);
+  return {min:mn,max:mx,c,size:s,R:0.5*vlen(s)};
+}
+setObj("lblock");
+
+/* ---------- projection specs ---------- */
+function specAxono(az,el,C,R){
+  const f=norm(V(-Math.cos(rad(el))*Math.cos(rad(az)),-Math.cos(rad(el))*Math.sin(rad(az)),-Math.sin(rad(el))));
+  const u=norm(V(-Math.sin(rad(az)),Math.cos(rad(az)),0));
+  return {kind:"par",d:f,n:mul(f,-1),u,v:norm(cross(u,f)),O:add(C,mul(f,R*1.7)),size:R*1.5,label:"picture plane"};
+}
+function specOblique(o,C,R){
+  if(o.face==="front"){
+    const d=norm(V(-o.L*Math.cos(rad(o.alpha)),1,-o.L*Math.sin(rad(o.alpha))));
+    return {kind:"par",d,n:V(0,-1,0),u:V(1,0,0),v:V(0,0,1),O:add(C,V(0,R*1.7,0)),size:R*1.5,label:"plane ∥ front face"};
+  }
+  const b=rad(o.beta);
+  return {kind:"par",d:norm(V(-o.L*Math.sin(b),o.L*Math.cos(b),-1)),n:V(0,0,1),
+    u:V(Math.cos(b),Math.sin(b),0),v:V(-Math.sin(b),Math.cos(b),0),
+    O:add(C,V(0,0,-R*1.7)),size:R*1.5,label:"plane ∥ plan"};
+}
+function specPersp(p,C){
+  const a=rad(p.az),e=rad(p.el);
+  const n=norm(V(Math.cos(e)*Math.cos(a),Math.cos(e)*Math.sin(a),Math.sin(e)));
+  const u=norm(V(-Math.sin(a),Math.cos(a),0));
+  return {kind:"per",eye:add(C,mul(n,p.dist)),n,u,v:norm(cross(u,mul(n,-1))),O:C,size:B.R*1.5,label:"picture plane"};
+}
+function proj(P,s){
+  const d=s.kind==="par"?s.d:sub(P,s.eye);
+  const den=dot(d,s.n);
+  const t=Math.abs(den)<1e-9?0:dot(sub(s.O,P),s.n)/den;
+  const Q=add(P,mul(d,t)),w=sub(Q,s.O);
+  return {q:Q,x:dot(w,s.u),y:dot(w,s.v)};
+}
+const dirOf=s=>(s.kind==="par"?()=>s.d:P=>sub(P,s.eye));
+function glassBox(){
+  const m=B.R*0.5;
+  const X0=B.min.x-m,X1=B.max.x+m,Y0=B.min.y-m,Y1=B.max.y+m,Z0=B.min.z-m,Z1=B.max.z+m;
+  const cx=(X0+X1)/2,cy=(Y0+Y1)/2,cz=(Z0+Z1)/2;
+  return {X0,X1,Y0,Y1,Z0,Z1,
+    front:{kind:"par",d:V(0,-1,0),n:V(0,-1,0),u:V(1,0,0),v:V(0,0,1),O:V(cx,Y0,cz),hw:(X1-X0)/2,hh:(Z1-Z0)/2,label:"front"},
+    top:{kind:"par",d:V(0,0,1),n:V(0,0,1),u:V(1,0,0),v:V(0,1,0),O:V(cx,cy,Z1),hw:(X1-X0)/2,hh:(Y1-Y0)/2,label:"top"},
+    right:{kind:"par",d:V(1,0,0),n:V(1,0,0),u:V(0,1,0),v:V(0,0,1),O:V(X1,cy,cz),hw:(Y1-Y0)/2,hh:(Z1-Z0)/2,label:"right side"}};
+}
+function rotAxis(P,axis,ang,h){
+  const p=sub(P,h),c=Math.cos(ang),s=Math.sin(ang);
+  const q=axis==="x"?V(p.x,p.y*c-p.z*s,p.y*s+p.z*c):V(p.x*c-p.y*s,p.x*s+p.y*c,p.z);
+  return add(q,h);
+}
+function unfoldFn(which,gb,t){
+  if(t<=0||which==="front") return P=>P;
+  if(which==="top"){const h=V(0,gb.Y0,gb.Z1);return P=>rotAxis(P,"x",rad(90*t),h);}
+  const h=V(gb.X1,gb.Y0,0);return P=>rotAxis(P,"z",rad(-90*t),h);
+}
+function currentSpec(){
+  if(S.mode==="axono") return specAxono(S.az,S.el,B.c,B.R);
+  if(S.mode==="oblique") return specOblique(S.obl,B.c,B.R);
+  if(S.mode==="persp") return specPersp(S.psp,B.c);
+  return glassBox().front;
+}
+
+/* ---------- canvas ---------- */
+const C1=document.getElementById("setup"),C2=document.getElementById("result");
+function fit(cv){
+  const r=cv.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+  cv.width=Math.max(1,r.width*dpr);cv.height=Math.max(1,r.height*dpr);
+  const ctx=cv.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w:r.width,h:r.height};
+}
+const INK="#16181c",INK2="#8b8f97",RULE="#cfcbc1",ACC="#c2341c",PAPER="#ffffff";
+
+function drawSolid(ctx,pts,depth,geo,keys,opt){
+  if(opt.hidden!==false){
+    ctx.save();ctx.setLineDash([3,3]);ctx.lineWidth=0.8;ctx.strokeStyle="#bcbfc5";ctx.beginPath();
+    for(const k of keys){const e=geo.edges.get(k);
+      ctx.moveTo(pts[e.a].x,pts[e.a].y);ctx.lineTo(pts[e.b].x,pts[e.b].y);}
+    ctx.stroke();ctx.restore();
+  }
+  const fd=geo.faces.map(f=>{let s=0,n=0;for(const L of f.loops)for(const i of L){s+=depth[i];n++;}return s/n;});
+  const order=geo.faces.map((_,i)=>i).sort((a,b)=>fd[b]-fd[a]);
+  ctx.save();ctx.setLineDash([]);ctx.lineJoin="round";
+  for(const fi of order){
+    const f=geo.faces[fi];
+    ctx.beginPath();
+    for(const L of f.loops){
+      ctx.moveTo(pts[L[0]].x,pts[L[0]].y);
+      for(let i=1;i<L.length;i++) ctx.lineTo(pts[L[i]].x,pts[L[i]].y);
+      ctx.closePath();
+    }
+    ctx.fillStyle=PAPER;ctx.fill("evenodd");
+    ctx.strokeStyle=INK;ctx.lineWidth=opt.lw||1.4;
+    ctx.beginPath();let any=false;
+    for(const L of f.loops) for(let i=0;i<L.length;i++){
+      const a=L[i],b=L[(i+1)%L.length];
+      if(a!==b&&keys.has(ek(a,b))){ctx.moveTo(pts[a].x,pts[a].y);ctx.lineTo(pts[b].x,pts[b].y);any=true;}
+    }
+    if(any) ctx.stroke();
+  }
+  ctx.restore();
+}
+function sampleProjectorVerts(keys,geo,max){
+  const set=new Set();
+  for(const k of keys){const e=geo.edges.get(k);set.add(e.a);set.add(e.b);}
+  const arr=[...set];
+  if(arr.length<=max) return arr;
+  const st=arr.length/max,out=[];
+  for(let i=0;i<max;i++) out.push(arr[Math.floor(i*st)]);
+  return out;
+}
+
+/* ---------- apparatus ---------- */
+function drawSetup(){
+  const {ctx,w,h}=fit(C1);ctx.clearRect(0,0,w,h);
+  const az=rad(S.cam.az),el=rad(S.cam.el);
+  const f=V(-Math.cos(el)*Math.cos(az),-Math.cos(el)*Math.sin(az),-Math.sin(el));
+  const cu=V(-Math.sin(az),Math.cos(az),0),cv=cross(cu,f);
+  const sc=Math.min(w,h)*0.16*S.cam.zoom,ox=w/2,oy=h/2+Math.min(w,h)*0.04;
+  const P=p=>({x:ox+dot(sub(p,B.c),cu)*sc,y:oy-dot(sub(p,B.c),cv)*sc});
+  const line=(a,b)=>{const A=P(a),C=P(b);ctx.moveTo(A.x,A.y);ctx.lineTo(C.x,C.y);};
+
+  if(S.show.box){
+    const c=[[B.min.x,B.min.y,B.min.z],[B.max.x,B.min.y,B.min.z],[B.max.x,B.max.y,B.min.z],[B.min.x,B.max.y,B.min.z],
+             [B.min.x,B.min.y,B.max.z],[B.max.x,B.min.y,B.max.z],[B.max.x,B.max.y,B.max.z],[B.min.x,B.max.y,B.max.z]]
+             .map(a=>V(a[0],a[1],a[2]));
+    ctx.save();ctx.setLineDash([2,4]);ctx.strokeStyle=RULE;ctx.lineWidth=1;ctx.beginPath();
+    [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].forEach(e=>line(c[e[0]],c[e[1]]));
+    ctx.stroke();ctx.restore();
+  }
+
+  const specs=[];
+  if(S.mode==="multiview"){
+    const gb=glassBox();
+    ["front","top","right"].forEach(k=>{if(S.mv[k])specs.push({s:gb[k],t:unfoldFn(k,gb,S.mv.unfold)});});
+  } else specs.push({s:currentSpec(),t:p=>p});
+
+  for(const sp of specs) sp.keys=visibleEdges(GEO,dirOf(sp.s));
+
+  if(S.show.proj){
+    const fade=S.mode==="multiview"?(1-S.mv.unfold):1;
+    if(fade>0.02){
+      ctx.save();ctx.strokeStyle=ACC;ctx.globalAlpha=0.42*fade;ctx.lineWidth=0.9;ctx.setLineDash([5,3]);
+      ctx.beginPath();
+      for(const sp of specs){
+        for(const i of sampleProjectorVerts(sp.keys,GEO,26)){
+          const p=GEO.verts[i];line(p,sp.t(proj(p,sp.s).q));
+          if(sp.s.kind==="per") line(p,sp.s.eye);
+        }
+      }
+      ctx.stroke();ctx.restore();
+    }
+  }
+
+  const camKeys=visibleEdges(GEO,()=>f);
+  drawSolid(ctx,GEO.verts.map(P),GEO.verts.map(p=>dot(sub(p,B.c),f)),GEO,camKeys,{hidden:S.show.hidden});
+
+  for(const sp of specs){
+    const s=sp.s,T=sp.t;
+    if(S.show.plane){
+      const hw=s.hw!==undefined?s.hw:s.size, hh=s.hh!==undefined?s.hh:s.size;
+      const q=[[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]]
+        .map(a=>P(T(add(add(s.O,mul(s.u,a[0])),mul(s.v,a[1])))));
+      ctx.beginPath();ctx.moveTo(q[0].x,q[0].y);for(let i=1;i<4;i++)ctx.lineTo(q[i].x,q[i].y);ctx.closePath();
+      ctx.fillStyle="rgba(120,128,140,0.10)";ctx.fill();
+      ctx.setLineDash([]);ctx.strokeStyle="#9aa0a8";ctx.lineWidth=1;ctx.stroke();
+      ctx.fillStyle=INK2;ctx.font="10px ui-monospace,monospace";
+      ctx.fillText(s.label,q[0].x+4,q[0].y-5);
+    }
+    const ip=GEO.verts.map(p=>P(T(proj(p,s).q)));
+    ctx.save();ctx.strokeStyle=ACC;ctx.lineWidth=1.5;ctx.setLineDash([]);ctx.beginPath();
+    for(const k of sp.keys){const e=GEO.edges.get(k);
+      ctx.moveTo(ip[e.a].x,ip[e.a].y);ctx.lineTo(ip[e.b].x,ip[e.b].y);}
+    ctx.stroke();ctx.restore();
+  }
+
+  if(S.mode==="persp"){
+    const e=P(specs[0].s.eye);
+    ctx.fillStyle=ACC;ctx.beginPath();ctx.arc(e.x,e.y,3.5,0,7);ctx.fill();
+    ctx.fillStyle=INK2;ctx.font="10px ui-monospace,monospace";ctx.fillText("station point",e.x+7,e.y+3);
+  }
+  if(S.show.axes){
+    const o=V(B.min.x-B.R*0.35,B.min.y-B.R*0.35,B.min.z-B.R*0.15),L=B.R*0.5;
+    ctx.save();ctx.strokeStyle=INK2;ctx.lineWidth=1.2;ctx.setLineDash([]);
+    ctx.font="10px ui-monospace,monospace";ctx.fillStyle=INK2;
+    for(const [nm,d] of [["X",V(L,0,0)],["Y",V(0,L,0)],["Z",V(0,0,L)]]){
+      ctx.beginPath();line(o,add(o,d));ctx.stroke();
+      const t=P(add(o,mul(d,1.15)));ctx.fillText(nm,t.x-3,t.y+3);
+    }
+    ctx.restore();
+  }
+  document.getElementById("camRead").textContent="orbit "+S.cam.az.toFixed(0)+"° / "+S.cam.el.toFixed(0)+"°";
+}
+
+/* ---------- resulting drawing ---------- */
+function drawResult(){
+  const {ctx,w,h}=fit(C2);ctx.clearRect(0,0,w,h);
+  if(S.mode==="multiview"){drawMultiview(ctx,w,h);return;}
+  const s=currentSpec(),sc=Math.min(w,h)*0.34/B.R,ox=w/2,oy=h/2;
+  const pr=GEO.verts.map(p=>proj(p,s));
+  let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
+  for(const r of pr){mnx=Math.min(mnx,r.x);mxx=Math.max(mxx,r.x);mny=Math.min(mny,r.y);mxy=Math.max(mxy,r.y);}
+  const cx=(mnx+mxx)/2,cy=(mny+mxy)/2;
+  const T=r=>({x:ox+(r.x-cx)*sc,y:oy-(r.y-cy)*sc});
+  const keys=visibleEdges(GEO,dirOf(s));
+  const dep=GEO.verts.map(p=>s.kind==="par"?dot(p,s.d):vlen(sub(p,s.eye)));
+  drawSolid(ctx,pr.map(T),dep,GEO,keys,{hidden:S.show.hidden,lw:1.6});
+  if(S.show.axes){
+    const o=V(B.min.x,B.min.y,B.min.z),L=B.R*0.55,A=T(proj(o,s));
+    ctx.save();ctx.strokeStyle=ACC;ctx.lineWidth=1.2;ctx.globalAlpha=0.8;
+    ctx.font="10px ui-monospace,monospace";ctx.fillStyle=ACC;
+    for(const [nm,d] of [["X",V(L,0,0)],["Y",V(0,L,0)],["Z",V(0,0,L)]]){
+      const Bp=T(proj(add(o,d),s));
+      ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(Bp.x,Bp.y);ctx.stroke();
+      ctx.fillText(nm,Bp.x+3,Bp.y+3);
+    }
+    ctx.restore();
+  }
+  document.getElementById("scaleRead").textContent="1 unit = "+sc.toFixed(0)+" px";
+}
+function drawMultiview(ctx,w,h){
+  const W=B.size.x,D=B.size.y,H=B.size.z,g=Math.max(W,D,H)*0.40;
+  const OY=H/2+g+D/2,OX=W/2+g+D/2,X0=W/2+g,Y0=H/2+g;
+  const minx=-W/2,maxx=OX+D/2,miny=-H/2,maxy=OY+D/2;
+  const sc=Math.min(w*0.84/(maxx-minx),h*0.84/(maxy-miny));
+  const px=w/2-((minx+maxx)/2)*sc,py=h/2+((miny+maxy)/2)*sc;
+  const T=(x,y)=>({x:px+x*sc,y:py-y*sc}),c=B.c;
+  const kF=visibleEdges(GEO,()=>V(0,-1,0)),kT=visibleEdges(GEO,()=>V(0,0,1)),kR=visibleEdges(GEO,()=>V(1,0,0));
+  const views=[];
+  if(S.mv.front) views.push({k:kF,pts:GEO.verts.map(p=>T(p.x-c.x,p.z-c.z)),dep:GEO.verts.map(p=>p.y),lab:"front",lp:T(0,-H/2)});
+  if(S.mv.top) views.push({k:kT,pts:GEO.verts.map(p=>T(p.x-c.x,p.y-c.y+OY)),dep:GEO.verts.map(p=>-p.z),lab:"top",lp:T(0,OY-D/2)});
+  if(S.mv.right) views.push({k:kR,pts:GEO.verts.map(p=>T(p.y-c.y+OX,p.z-c.z)),dep:GEO.verts.map(p=>-p.x),lab:"right side",lp:T(OX,-H/2)});
+
+  if(S.mv.constr){
+    const uniq=a=>[...new Set(a.map(v=>Math.round(v*200)/200))];
+    ctx.save();ctx.strokeStyle="#cdc9bf";ctx.lineWidth=0.8;ctx.setLineDash([6,3]);ctx.beginPath();
+    if(S.mv.front&&S.mv.top) for(const x of uniq(GEO.verts.map(p=>p.x-c.x))){
+      const a=T(x,H/2),b=T(x,OY+D/2);ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);}
+    if(S.mv.front&&S.mv.right) for(const z of uniq(GEO.verts.map(p=>p.z-c.z))){
+      const a=T(W/2,z),b=T(OX+D/2,z);ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);}
+    if(S.mv.top&&S.mv.right) for(const d of uniq(GEO.verts.map(p=>p.y-B.min.y))){
+      const a=T(X0,Y0+d),m=T(X0+d,Y0+d),b=T(X0+d,-H/2);
+      ctx.moveTo(a.x,a.y);ctx.lineTo(m.x,m.y);ctx.lineTo(b.x,b.y);}
+    ctx.stroke();
+    ctx.setLineDash([]);ctx.strokeStyle=ACC;ctx.globalAlpha=0.85;ctx.lineWidth=1.1;
+    const a=T(X0-D*0.15,Y0-D*0.15),b=T(X0+D*1.15,Y0+D*1.15);
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+    ctx.fillStyle=ACC;ctx.font="10px ui-monospace,monospace";ctx.fillText("45° miter",b.x+4,b.y-2);
+    ctx.restore();
+  }
+  for(const v of views){
+    drawSolid(ctx,v.pts,v.dep,GEO,v.k,{hidden:S.show.hidden,lw:1.6});
+    ctx.fillStyle=INK2;ctx.font="10px ui-monospace,monospace";ctx.fillText(v.lab,v.lp.x-14,v.lp.y+14);
+  }
+  document.getElementById("scaleRead").textContent="1 unit = "+sc.toFixed(0)+" px · third angle";
+}
+
+/* ---------- readouts ---------- */
+function axisMetrics(s){
+  const o=B.c,base=proj(o,s),out=[];
+  for(const [nm,d] of [["X",V(1,0,0)],["Y",V(0,1,0)],["Z",V(0,0,1)]]){
+    const t=proj(add(o,d),s);
+    out.push({nm,r:Math.hypot(t.x-base.x,t.y-base.y),a:deg(Math.atan2(t.y-base.y,t.x-base.x))});
+  }
+  return out;
+}
+const tbl=m=>"<div>ratio&nbsp;&nbsp;"+m.map(a=>a.nm+" "+a.r.toFixed(3)).join("&nbsp;&nbsp;·&nbsp;&nbsp;")+
+  "</div><div>angle&nbsp;&nbsp;"+m.map(a=>a.nm+" "+a.a.toFixed(1)+"°").join("&nbsp;&nbsp;·&nbsp;&nbsp;")+"</div>";
+function updateReadout(){
+  const lin=document.getElementById("lineage"),ro=document.getElementById("readout"),sf=document.getElementById("setupFoot");
+  let path="",note="";
+  if(S.mode==="multiview"){
+    path="parallel → orthographic → <em>multiview</em>";
+    note="Projectors normal to each plane. Every view measurable, no view showing three dimensions at once.";
+    ro.innerHTML="";
+    sf.innerHTML="<b>Three planes, three directions.</b> Each set of projectors is normal to its own plane and parallel to a principal axis.";
+  }else if(S.mode==="axono"){
+    const m=axisMetrics(specAxono(S.az,S.el,B.c,B.R)),[x,y,z]=m.map(a=>a.r),t=0.012;
+    const eq=(a,b)=>Math.abs(a-b)<t;
+    let kind=eq(x,y)&&eq(y,z)?"isometric":(eq(x,y)||eq(y,z)||eq(x,z))?"dimetric":"trimetric";
+    if(x<t||y<t||z<t) kind="single-view orthographic";
+    path="parallel → orthographic → axonometric → <em>"+kind+"</em>";
+    note="Projectors normal to the plane. The plane is oblique to every principal face, so no face is true.";
+    ro.innerHTML=tbl(m);
+    sf.innerHTML="<b>Projectors stay normal to the plane.</b> Turning the plane, not the projectors, is what makes this axonometric.";
+  }else if(S.mode==="oblique"){
+    const o=S.obl,m=axisMetrics(specOblique(o,B.c,B.R));
+    const kind=o.face==="top"?"military / planometric":
+      Math.abs(o.L-1)<0.02?"cavalier":Math.abs(o.L-0.5)<0.02?"cabinet":"general oblique";
+    path="parallel → <em>oblique</em> → "+kind;
+    note="Projectors parallel but not normal to the plane. One face stays true; the depth ratio is chosen, not measured.";
+    ro.innerHTML=tbl(m);
+    sf.innerHTML="<b>Projectors are tilted to the plane.</b> The true face is free; the receding axis is a convention.";
+  }else{
+    path="central projection — <em>not</em> a parallel projection";
+    note="Projectors converge on a station point. Increase the distance and the pencil flattens toward parallel.";
+    ro.innerHTML="";
+    sf.innerHTML="<b>The projectors meet.</b> Parallel projection is the limiting case: an eye at infinite distance, which is an eye placed nowhere.";
+  }
+  lin.innerHTML=path+"<br>"+note;
+}
+
+/* ---------- ui ---------- */
+const segs=[];
+function seg(id,get,set){
+  const el=document.getElementById(id);
+  el.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;set(b.dataset.v);sync();render();});
+  el._sync=()=>[...el.children].forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===get()));
+  segs.push(el);return el;
+}
+seg("objSeg",()=>S.obj,v=>setObj(v));
+seg("modeSeg",()=>S.mode,v=>{S.mode=v;});
+seg("axoPre",()=>"",v=>{
+  if(v==="iso"){S.az=45;S.el=35.264;}
+  else if(v==="di"){S.az=45;S.el=20;}
+  else if(v==="tri"){S.az=62;S.el=27;}
+  else {S.az=0;S.el=0;}});
+seg("oblFace",()=>S.obl.face,v=>{S.obl.face=v;});
+seg("oblPre",()=>"",v=>{
+  if(v==="cav"){S.obl.face="front";S.obl.alpha=45;S.obl.L=1;}
+  else if(v==="cab"){S.obl.face="front";S.obl.alpha=45;S.obl.L=0.5;}
+  else {S.obl.face="top";S.obl.beta=45;S.obl.L=1;}});
+
+const ranges=[];
+function bindRange(id,get,set,fmt,out){
+  const el=document.getElementById(id),o=document.getElementById(out);
+  el.addEventListener("input",()=>{set(parseFloat(el.value));sync();render();});
+  el._sync=()=>{el.value=get();o.textContent=fmt(get());};
+  ranges.push(el);
+}
+bindRange("az",()=>S.az,v=>S.az=v,v=>v.toFixed(1)+"°","azV");
+bindRange("el",()=>S.el,v=>S.el=v,v=>v.toFixed(1)+"°","elV");
+bindRange("alpha",()=>S.obl.alpha,v=>S.obl.alpha=v,v=>v.toFixed(0)+"°","alphaV");
+bindRange("beta",()=>S.obl.beta,v=>S.obl.beta=v,v=>v.toFixed(0)+"°","betaV");
+bindRange("L",()=>S.obl.L,v=>S.obl.L=v,v=>v.toFixed(2),"LV");
+bindRange("dist",()=>S.psp.dist,v=>S.psp.dist=v,v=>v.toFixed(1),"distV");
+bindRange("paz",()=>S.psp.az,v=>S.psp.az=v,v=>v.toFixed(1)+"°","pazV");
+bindRange("pel",()=>S.psp.el,v=>S.psp.el=v,v=>v.toFixed(1)+"°","pelV");
+bindRange("unfold",()=>S.mv.unfold,v=>S.mv.unfold=v,v=>Math.round(v*100)+"%","unfoldV");
+
+[["sProj","proj"],["sPlane","plane"],["sBox","box"],["sAxes","axes"],["sHid","hidden"]].forEach(([id,k])=>{
+  const el=document.getElementById(id);el.checked=S.show[k];
+  el.addEventListener("change",()=>{S.show[k]=el.checked;render();});});
+[["mvFront","front"],["mvTop","top"],["mvRight","right"],["mvConstr","constr"]].forEach(([id,k])=>{
+  const el=document.getElementById(id);el.checked=S.mv[k];
+  el.addEventListener("change",()=>{S.mv[k]=el.checked;render();});});
+
+function sync(){
+  segs.forEach(s=>s._sync());ranges.forEach(r=>r._sync());
+  document.querySelectorAll("[data-mode]").forEach(g=>g.classList.toggle("hide",g.dataset.mode!==S.mode));
+  document.getElementById("rowAlpha").classList.toggle("hide",S.obl.face!=="front");
+  document.getElementById("rowBeta").classList.toggle("hide",S.obl.face!=="top");
+}
+let drag=null;
+C1.addEventListener("pointerdown",e=>{drag={x:e.clientX,y:e.clientY};C1.setPointerCapture(e.pointerId);C1.style.cursor="grabbing";});
+C1.addEventListener("pointermove",e=>{
+  if(!drag)return;
+  S.cam.az-=(e.clientX-drag.x)*0.4;
+  S.cam.el=Math.max(-88,Math.min(88,S.cam.el+(e.clientY-drag.y)*0.35));
+  drag={x:e.clientX,y:e.clientY};drawSetup();});
+["pointerup","pointercancel","pointerleave"].forEach(ev=>C1.addEventListener(ev,()=>{drag=null;C1.style.cursor="grab";}));
+C1.addEventListener("wheel",e=>{e.preventDefault();
+  S.cam.zoom=Math.max(0.35,Math.min(3,S.cam.zoom*(e.deltaY>0?0.92:1.08)));drawSetup();},{passive:false});
+
+function render(){drawSetup();drawResult();updateReadout();}
+new ResizeObserver(()=>render()).observe(document.querySelector("main"));
+sync();render();
+</script>
+</body>
+</html>
