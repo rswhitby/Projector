@@ -110,6 +110,7 @@
         <button data-v="knob">Knob</button>
         <button data-v="torus">Torus</button>
         <button data-v="flange">Flange</button>
+        <button data-v="tribar">Tribar</button>
       </div>
       <p class="note">Objects</p>
     </div>
@@ -412,6 +413,25 @@ const OBJECTS={
   flange:()=>{
     const P=[[0,-0.55],[1.45,-0.55],[1.45,-0.20],[0.72,-0.20],[0.72,1.10],[0.44,1.10],[0.44,-0.55]];
     return revolve(P.map(p=>[p[0],p[1]]),{segs:52});
+  }
+  ,
+  /* Three beams on a stepped path, genuinely disjoint in space. The far end of
+     the third sits exactly one (1,1,1) step from the near end of the first,
+     and isometric projects along (1,1,1) -- so in that one direction the two
+     ends land on each other and the bar reads as a closed triangle. Nothing is
+     faked in the renderer; the drawing is just missing the depth that would
+     give it away. Orbit the apparatus and it comes apart. */
+  tribar:()=>{
+    const verts=[],faces=[];
+    const box=(x0,x1,y0,y1,z0,z1)=>{
+      const b=verts.length;
+      for(const z of [z0,z1]) for(const y of [y0,y1]) for(const x of [x0,x1]) verts.push(V(x,y,z));
+      const q=(...i)=>faces.push([i.map(k=>b+k)]);      /* index bits: x + 2y + 4z */
+      q(0,2,3,1); q(4,5,7,6); q(0,1,5,4); q(2,6,7,3); q(0,4,6,2); q(1,3,7,5);
+    };
+    box(0,3,0,1,0,1); box(2,3,1,3,0,1); box(2,3,2,3,1,2);
+    const c=V(1.5,1.5,1);
+    return finalize(verts.map(p=>mul(sub(p,c),0.72)),faces,new Set());
   }
 };
 
