@@ -177,19 +177,22 @@
         <button data-v="one">One point</button>
         <button data-v="two">Two point</button>
         <button data-v="three">Three point</button>
+        <button data-v="fish">Fisheye</button>
       </div>
       <div class="seg" id="pspDir">
         <button data-v="fwd">Eye in front</button>
         <button data-v="rev">Eye behind</button>
       </div>
       <label class="row"><span class="lab">Distance from object <b id="distV">12.0</b></span>
-        <input type="range" id="dist" min="4" max="60" step="0.5" value="12"></label>
+        <input type="range" id="dist" min="2" max="60" step="0.5" value="12"></label>
       <label class="row"><span class="lab">Azimuth <b id="pazV">40°</b></span>
         <input type="range" id="paz" min="-180" max="180" step="0.5" value="40"></label>
       <label class="row"><span class="lab">Elevation <b id="pelV">15°</b></span>
         <input type="range" id="pel" min="-89" max="89" step="0.5" value="15"></label>
+      <label class="row"><span class="lab">Curvature <b id="curveV">0.00</b></span>
+        <input type="range" id="curve" min="0" max="1" step="0.01" value="0"></label>
       <div class="chk"><input type="checkbox" id="pspVP" checked><label for="pspVP">Vanishing points and horizon</label></div>
-      <p class="note">How many vanishing points there are is not a choice. An axis parallel to the picture plane has none; turn the plane and it gains one. Put the eye behind and the pencil diverges instead: far things grow.</p>
+      <p class="note">Curvature bends straight edges by measuring the angle off the axis instead of where the ray crosses a flat plane. It shows most at a close station point and out at the edges of the field; radial lines never bend at all. How many vanishing points there are is not a choice. An axis parallel to the picture plane has none; turn the plane and it gains one. Put the eye behind and the pencil diverges instead: far things grow.</p>
     </div>
 
     <div class="grp">
@@ -439,12 +442,44 @@ const OBJECTS={
 const CAM0={az:-58,el:20,zoom:1};
 const S={obj:"lblock",mode:"axono",az:45,el:35.264,
   obl:{face:"front",alpha:45,beta:45,L:1},
-  psp:{az:40,el:15,dist:12,vp:true,rev:false},
+  psp:{az:40,el:15,dist:12,vp:true,rev:false,curve:0},
   mv:{unfold:0,front:true,top:true,right:true,constr:true},
   show:{proj:true,plane:true,box:true,axes:true},
   cam:{...CAM0}};
-let GEO,B;
-function setObj(k){S.obj=k;GEO=OBJECTS[k]();B=bounds(GEO);}
+let BASE,GEO,B;
+/* A curved projection bends straight edges, but the renderer only draws
+   straight segments between vertices, so an edge needs interior points before
+   it can bend. Coarse meshes get split; a torus already has enough. */
+function subdivide(g,n){
+  if(n<2) return g;
+  const verts=g.verts.slice(),chains=new Map(),smooth=new Set();
+  const chain=(a,b)=>{
+    const k=ek(a,b),hit=chains.get(k);
+    if(hit) return hit[0]===a?hit:hit.slice().reverse();
+    const A=g.verts[a],Z=g.verts[b],c=[a];
+    for(let i=1;i<n;i++){const t=i/n;c.push(verts.push(add(mul(A,1-t),mul(Z,t)))-1);}
+    c.push(b);chains.set(k,c);
+    const e=g.edges.get(k);
+    if(e&&e.smooth) for(let i=0;i<c.length-1;i++) smooth.add(ek(c[i],c[i+1]));
+    return c;
+  };
+  const faces=g.faces.map(f=>f.loops.map(L=>{
+    const out=[];
+    for(let i=0;i<L.length;i++){const c=chain(L[i],L[(i+1)%L.length]);
+      for(let j=0;j<c.length-1;j++) out.push(c[j]);}
+    return out;}));
+  return finalize(verts,faces,smooth);
+}
+let geoCache={key:"",geo:null};
+function refreshGeo(){
+  const curved=S.mode==="persp"&&S.psp.curve>0;
+  const n=curved?Math.max(1,Math.min(8,Math.round(600/BASE.faces.length))):1;
+  const key=S.obj+"/"+n;
+  if(geoCache.key!==key) geoCache={key,geo:n>1?subdivide(BASE,n):BASE};
+  GEO=geoCache.geo;
+  B=bounds(GEO);   /* midpoints sit on edges, so this matches the base bounds */
+}
+function setObj(k){S.obj=k;BASE=OBJECTS[k]();refreshGeo();}
 function bounds(g){
   const mn=V(1e9,1e9,1e9),mx=V(-1e9,-1e9,-1e9);
   for(const p of g.verts){
@@ -484,7 +519,7 @@ function specPersp(p,C){
   /* Reverse perspective moves the centre of projection behind the object, so
      the pencil diverges and far things grow. Where the viewer stands has not
      changed, so silhouette and depth keep their own eye in front: veye. */
-  return {kind:"per",eye:p.rev?add(C,mul(n,-p.dist)):fwd,veye:fwd,
+  return {kind:"per",eye:p.rev?add(C,mul(n,-p.dist)):fwd,veye:fwd,curve:p.curve,
     n,u,v:norm(cross(u,mul(n,-1))),O:C,size:B.R*1.5,
     label:p.rev?"picture plane (reversed)":"picture plane"};
 }
@@ -505,6 +540,19 @@ function horizon(s){
 }
 const AXES=[["X",V(1,0,0)],["Y",V(0,1,0)],["Z",V(0,0,1)]];
 function proj(P,s){
+  /* Curvilinear perspective measures the angle off the axis instead of where
+     the ray crosses a flat plane. Rectilinear puts the image at D*tan0, the
+     equidistant fisheye at D*0; blending the two walks continuously from one
+     to the other, so straight edges bow rather than switching. */
+  if(s.kind==="per"&&s.curve>0){
+    const w=norm(sub(P,s.eye)),fwd=mul(s.n,-1);
+    const th=Math.acos(Math.max(-1,Math.min(1,dot(w,fwd))));
+    const du=dot(w,s.u),dv=dot(w,s.v),m=Math.hypot(du,dv);
+    const D=vlen(sub(s.eye,s.O));
+    const r=D*((1-s.curve)*Math.tan(Math.min(th,rad(88)))+s.curve*th);
+    const x=m<1e-9?0:r*du/m, y=m<1e-9?0:r*dv/m;
+    return {q:add(add(s.O,mul(s.u,x)),mul(s.v,y)),x,y};
+  }
   const d=s.kind==="par"?s.d:sub(P,s.eye);
   const den=dot(d,s.n);
   const t=Math.abs(den)<1e-9?0:dot(sub(s.O,P),s.n)/den;
@@ -682,7 +730,9 @@ function drawResult(){
 
   /* Vanishing points sit far outside the object, so pull the scale back far
      enough to hold them -- but only so far, or the object becomes a speck. */
-  const vps=(S.mode==="persp"&&S.psp.vp)
+  /* Straight lines have bowed, so a single point of convergence no longer
+     describes them: no vanishing points once the projection is curved. */
+  const vps=(S.mode==="persp"&&S.psp.vp&&!S.psp.curve)
     ? AXES.map(([nm,d])=>({nm,p:vanish(s,d)})).filter(a=>a.p) : [];
   let sc=Math.min(w,h)*0.34/B.R;
   if(vps.length){
@@ -827,7 +877,9 @@ function updateReadout(){
   }else{
     const sp=specPersp(S.psp,B.c);
     const pts=AXES.filter(([nm,d])=>Math.abs(dot(d,sp.n))>0.02).length;
-    const kind=["no","one","two","three"][pts]+"-point";
+    const kind=S.psp.curve>0
+      ? (S.psp.curve>0.99?"curvilinear":"part-curvilinear")
+      : ["no","one","two","three"][pts]+"-point";
     path="central projection — <em>"+(S.psp.rev?"reverse "+kind:kind)+"</em>, not a parallel projection";
     note=S.psp.rev
       ? "The centre of projection sits behind the object, so the pencil diverges: what recedes grows. Icon painters used it; cameras cannot."
@@ -858,7 +910,9 @@ seg("pspPre",()=>"",v=>{
      consequence of that, never a setting of its own. */
   if(v==="one"){S.psp.az=90;S.psp.el=0;S.psp.dist=7;}
   else if(v==="two"){S.psp.az=35;S.psp.el=0;S.psp.dist=6;}
-  else {S.psp.az=35;S.psp.el=28;S.psp.dist=7;}});
+  else if(v==="three"){S.psp.az=35;S.psp.el=28;S.psp.dist=7;S.psp.curve=0;}
+  else {S.psp.az=35;S.psp.el=10;S.psp.dist=2.6;S.psp.curve=1;}
+  if(v!=="fish") S.psp.curve=0;});
 seg("pspDir",()=>S.psp.rev?"rev":"fwd",v=>{S.psp.rev=v==="rev";});
 seg("oblFace",()=>S.obl.face,v=>{S.obl.face=v;});
 seg("oblPre",()=>"",v=>{
@@ -881,6 +935,7 @@ bindRange("L",()=>S.obl.L,v=>S.obl.L=v,v=>v.toFixed(2),"LV");
 bindRange("dist",()=>S.psp.dist,v=>S.psp.dist=v,v=>v.toFixed(1),"distV");
 bindRange("paz",()=>S.psp.az,v=>S.psp.az=v,v=>v.toFixed(1)+"°","pazV");
 bindRange("pel",()=>S.psp.el,v=>S.psp.el=v,v=>v.toFixed(1)+"°","pelV");
+bindRange("curve",()=>S.psp.curve,v=>S.psp.curve=v,v=>v.toFixed(2),"curveV");
 bindRange("unfold",()=>S.mv.unfold,v=>S.mv.unfold=v,v=>Math.round(v*100)+"%","unfoldV");
 
 {const el=document.getElementById("pspVP");el.checked=S.psp.vp;
@@ -930,7 +985,7 @@ document.getElementById("camReset").addEventListener("click",()=>{Object.assign(
 C1.addEventListener("wheel",e=>{e.preventDefault();
   zoomTo(S.cam.zoom*(e.deltaY>0?0.92:1.08));},{passive:false});
 
-function render(){drawSetup();drawResult();updateReadout();}
+function render(){refreshGeo();drawSetup();drawResult();updateReadout();}
 new ResizeObserver(()=>render()).observe(document.querySelector("main"));
 sync();render();
 </script>
