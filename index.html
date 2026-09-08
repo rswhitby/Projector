@@ -5,9 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>The direction of the projectors — ARCH 5511</title>
 <style>
-  :root{
-    --paper:#fbfaf7; --sheet:#ffffff; --ink:#16181c; --ink-2:#5c6068;
-    --rule:#d6d2c8; --rule-2:#e8e5dd; --accent:#c2341c;
+:root{
+    color-scheme:dark;   /* dark scrollbars and native controls */
+    /* Vector-CRT palette: dark ground, phosphor linework, amber projectors.
+       --paper doubles as the opaque face fill on canvas, so it must stay
+       exactly the ground colour or hidden-surface removal shows its seams. */
+    --paper:#070b11; --sheet:#0d141d; --ink:#daefe5; --ink-2:#7b9a90;
+    --rule:#20303f; --rule-2:#16222e; --accent:#ffab3d;
+    --line:#5cf2b0; --line-2:#74a294; --guide:#2b4356; --guide-2:#3f6580;
+    --plane:#7fd8ff;
     --grotesk:"Helvetica Neue",Inter,Arial,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
@@ -472,7 +478,10 @@ function fit(cv){
   const ctx=cv.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
   return {ctx,w:r.width,h:r.height};
 }
-const INK="#16181c",INK2="#8b8f97",RULE="#cfcbc1",ACC="#c2341c",PAPER="#ffffff";
+/* One palette: the canvas reads the same custom properties the chrome does. */
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const INK=css("--line"),INK2=css("--line-2"),RULE=css("--guide"),GUIDE2=css("--guide-2"),
+      ACC=css("--accent"),PLANE=css("--plane"),PAPER=css("--paper");
 
 function drawSolid(ctx,pts,depth,geo,keys,opt){
   const fd=geo.faces.map(f=>{let s=0,n=0;for(const L of f.loops)for(const i of L){s+=depth[i];n++;}return s/n;});
@@ -561,8 +570,8 @@ function drawSetup(){
       const q=[[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]]
         .map(a=>P(T(add(add(s.O,mul(s.u,a[0])),mul(s.v,a[1])))));
       ctx.beginPath();ctx.moveTo(q[0].x,q[0].y);for(let i=1;i<4;i++)ctx.lineTo(q[i].x,q[i].y);ctx.closePath();
-      ctx.fillStyle="rgba(120,128,140,0.10)";ctx.fill();
-      ctx.setLineDash([]);ctx.strokeStyle="#9aa0a8";ctx.lineWidth=1;ctx.stroke();
+      ctx.save();ctx.globalAlpha=0.09;ctx.fillStyle=PLANE;ctx.fill();ctx.restore();
+      ctx.save();ctx.globalAlpha=0.5;ctx.setLineDash([]);ctx.strokeStyle=PLANE;ctx.lineWidth=1;ctx.stroke();ctx.restore();
       ctx.fillStyle=INK2;ctx.font="10px ui-monospace,monospace";
       ctx.fillText(s.label,q[0].x+4,q[0].y-5);
     }
@@ -638,7 +647,7 @@ function drawMultiview(ctx,w,h){
      first would erase every stretch that crosses a view. */
   if(S.mv.constr){
     const uniq=a=>[...new Set(a.map(v=>Math.round(v*200)/200))];
-    ctx.save();ctx.strokeStyle="#cdc9bf";ctx.lineWidth=0.8;ctx.setLineDash([6,3]);ctx.beginPath();
+    ctx.save();ctx.strokeStyle=GUIDE2;ctx.lineWidth=0.8;ctx.setLineDash([6,3]);ctx.beginPath();
     if(S.mv.front&&S.mv.top) for(const x of uniq(GEO.verts.map(p=>p.x-c.x))){
       const a=T(x,H/2),b=T(x,OY+D/2);ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);}
     if(S.mv.front&&S.mv.right) for(const z of uniq(GEO.verts.map(p=>p.z-c.z))){
