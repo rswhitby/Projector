@@ -172,13 +172,23 @@
 
     <div class="grp" data-mode="persp">
       <h3>Station point</h3>
+      <div class="seg" id="pspPre">
+        <button data-v="one">One point</button>
+        <button data-v="two">Two point</button>
+        <button data-v="three">Three point</button>
+      </div>
+      <div class="seg" id="pspDir">
+        <button data-v="fwd">Eye in front</button>
+        <button data-v="rev">Eye behind</button>
+      </div>
       <label class="row"><span class="lab">Distance from object <b id="distV">12.0</b></span>
         <input type="range" id="dist" min="4" max="60" step="0.5" value="12"></label>
       <label class="row"><span class="lab">Azimuth <b id="pazV">40°</b></span>
         <input type="range" id="paz" min="-180" max="180" step="0.5" value="40"></label>
       <label class="row"><span class="lab">Elevation <b id="pelV">15°</b></span>
         <input type="range" id="pel" min="-89" max="89" step="0.5" value="15"></label>
-      <p class="note">Projectors converge on a point. Push the station point away and the pencil of projectors flattens toward parallel.</p>
+      <div class="chk"><input type="checkbox" id="pspVP" checked><label for="pspVP">Vanishing points and horizon</label></div>
+      <p class="note">How many vanishing points there are is not a choice. An axis parallel to the picture plane has none; turn the plane and it gains one. Put the eye behind and the pencil diverges instead: far things grow.</p>
     </div>
 
     <div class="grp">
@@ -409,7 +419,7 @@ const OBJECTS={
 const CAM0={az:-58,el:20,zoom:1};
 const S={obj:"lblock",mode:"axono",az:45,el:35.264,
   obl:{face:"front",alpha:45,beta:45,L:1},
-  psp:{az:40,el:15,dist:12},
+  psp:{az:40,el:15,dist:12,vp:true,rev:false},
   mv:{unfold:0,front:true,top:true,right:true,constr:true},
   show:{proj:true,plane:true,box:true,axes:true},
   cam:{...CAM0}};
@@ -450,8 +460,30 @@ function specPersp(p,C){
   const a=rad(p.az),e=rad(p.el);
   const n=norm(V(Math.cos(e)*Math.cos(a),Math.cos(e)*Math.sin(a),Math.sin(e)));
   const u=norm(V(-Math.sin(a),Math.cos(a),0));
-  return {kind:"per",eye:add(C,mul(n,p.dist)),n,u,v:norm(cross(u,mul(n,-1))),O:C,size:B.R*1.5,label:"picture plane"};
+  const fwd=add(C,mul(n,p.dist));
+  /* Reverse perspective moves the centre of projection behind the object, so
+     the pencil diverges and far things grow. Where the viewer stands has not
+     changed, so silhouette and depth keep their own eye in front: veye. */
+  return {kind:"per",eye:p.rev?add(C,mul(n,-p.dist)):fwd,veye:fwd,
+    n,u,v:norm(cross(u,mul(n,-1))),O:C,size:B.R*1.5,
+    label:p.rev?"picture plane (reversed)":"picture plane"};
 }
+/* The vanishing point of a direction is where the ray from the eye along it
+   meets the picture plane. A direction parallel to the plane has none, which
+   is exactly what makes one-, two- and three-point perspective differ. */
+function vanish(s,w){
+  const den=dot(w,s.n);
+  if(Math.abs(den)<1e-6) return null;
+  const r=sub(add(s.eye,mul(w,dot(sub(s.O,s.eye),s.n)/den)),s.O);
+  return {x:dot(r,s.u),y:dot(r,s.v)};
+}
+/* Horizon: the vanishing line of horizontal planes. A point O+xu+yv lies on it
+   when it is level with the eye, giving one linear equation in plane coords. */
+function horizon(s){
+  const uz=s.u.z,vz=s.v.z,k=s.eye.z-s.O.z;
+  return Math.hypot(uz,vz)<1e-6?null:{uz,vz,k};
+}
+const AXES=[["X",V(1,0,0)],["Y",V(0,1,0)],["Z",V(0,0,1)]];
 function proj(P,s){
   const d=s.kind==="par"?s.d:sub(P,s.eye);
   const den=dot(d,s.n);
@@ -459,7 +491,9 @@ function proj(P,s){
   const Q=add(P,mul(d,t)),w=sub(Q,s.O);
   return {q:Q,x:dot(w,s.u),y:dot(w,s.v)};
 }
-const dirOf=s=>(s.kind==="par"?()=>s.d:P=>sub(P,s.eye));
+/* Visibility follows the viewer, which is veye when the projection centre has
+   been thrown behind the object. */
+const dirOf=s=>(s.kind==="par"?()=>s.d:P=>sub(P,s.veye||s.eye));
 function glassBox(){
   const m=B.R*0.5;
   const X0=B.min.x-m,X1=B.max.x+m,Y0=B.min.y-m,Y1=B.max.y+m,Z0=B.min.z-m,Z1=B.max.z+m;
@@ -620,21 +654,74 @@ function drawSetup(){
 function drawResult(){
   const {ctx,w,h}=fit(C2);ctx.clearRect(0,0,w,h);
   if(S.mode==="multiview"){drawMultiview(ctx,w,h);return;}
-  const s=currentSpec(),sc=Math.min(w,h)*0.34/B.R,ox=w/2,oy=h/2;
+  const s=currentSpec(),ox=w/2,oy=h/2;
   const pr=GEO.verts.map(p=>proj(p,s));
   let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
   for(const r of pr){mnx=Math.min(mnx,r.x);mxx=Math.max(mxx,r.x);mny=Math.min(mny,r.y);mxy=Math.max(mxy,r.y);}
   const cx=(mnx+mxx)/2,cy=(mny+mxy)/2;
+
+  /* Vanishing points sit far outside the object, so pull the scale back far
+     enough to hold them -- but only so far, or the object becomes a speck. */
+  const vps=(S.mode==="persp"&&S.psp.vp)
+    ? AXES.map(([nm,d])=>({nm,p:vanish(s,d)})).filter(a=>a.p) : [];
+  let sc=Math.min(w,h)*0.34/B.R;
+  if(vps.length){
+    const room=Math.min(...vps.flatMap(a=>[
+      0.44*w/Math.max(1e-6,Math.abs(a.p.x-cx)), 0.44*h/Math.max(1e-6,Math.abs(a.p.y-cy))]));
+    /* Pull back a little to catch near vanishing points, but never far enough
+       to shrink the object: a distant station point puts them out of frame,
+       which is the honest answer and why perspective grids need big sheets. */
+    sc=Math.max(sc/1.6,Math.min(sc,room));
+  }
   const T=r=>({x:ox+(r.x-cx)*sc,y:oy-(r.y-cy)*sc});
+
+  if(vps.length){
+    const hz=horizon(s);
+    if(hz&&Math.abs(hz.vz)>1e-6){
+      /* uz*x + vz*y = k, solved for y at the two panel edges. */
+      const yAt=x=>(hz.k-hz.uz*x)/hz.vz;
+      const xL=cx-ox/sc, xR=cx+(w-ox)/sc;
+      const a=T({x:xL,y:yAt(xL)}),b=T({x:xR,y:yAt(xR)});
+      ctx.save();ctx.strokeStyle=GUIDE2;ctx.lineWidth=1;ctx.setLineDash([7,4]);
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+      ctx.setLineDash([]);ctx.fillStyle=GUIDE2;ctx.font="10px ui-monospace,monospace";
+      ctx.fillText("horizon",6,a.y-5);ctx.restore();
+    }
+    /* Extend the bounding-box edges parallel to each axis out to its own
+       vanishing point: the convergence is the whole point of the mode. */
+    ctx.save();ctx.strokeStyle=ACC;ctx.globalAlpha=0.30;ctx.lineWidth=0.9;ctx.setLineDash([4,3]);
+    ctx.beginPath();
+    for(const a of vps){
+      const ax=AXES.find(A=>A[0]===a.nm)[1];
+      const lo=[B.min.x,B.min.y,B.min.z],hi=[B.max.x,B.max.y,B.max.z];
+      const k=ax.x?0:ax.y?1:2, o1=(k+1)%3, o2=(k+2)%3;
+      for(const c1 of [lo[o1],hi[o1]]) for(const c2 of [lo[o2],hi[o2]]){
+        const mk=t=>{const q=[0,0,0];q[k]=t;q[o1]=c1;q[o2]=c2;return V(q[0],q[1],q[2]);};
+        const e1=proj(mk(lo[k]),s),e2=proj(mk(hi[k]),s);
+        const far=Math.hypot(e1.x-a.p.x,e1.y-a.p.y)>Math.hypot(e2.x-a.p.x,e2.y-a.p.y)?e1:e2;
+        const A=T(far),Z=T(a.p);ctx.moveTo(A.x,A.y);ctx.lineTo(Z.x,Z.y);
+      }
+    }
+    ctx.stroke();ctx.restore();
+  }
+
   const keys=visibleEdges(GEO,dirOf(s));
-  const dep=GEO.verts.map(p=>s.kind==="par"?dot(p,s.d):vlen(sub(p,s.eye)));
+  const dep=GEO.verts.map(p=>s.kind==="par"?dot(p,s.d):vlen(sub(p,s.veye||s.eye)));
   drawSolid(ctx,pr.map(T),dep,GEO,keys,{lw:1.6});
+
+  for(const a of vps){
+    const q=T(a.p);
+    if(q.x<4||q.x>w-4||q.y<4||q.y>h-4) continue;   /* off the sheet: no marker */
+    ctx.save();ctx.fillStyle=ACC;ctx.beginPath();ctx.arc(q.x,q.y,3,0,7);ctx.fill();
+    ctx.font="10px ui-monospace,monospace";ctx.fillText("VP"+a.nm.toLowerCase(),q.x+6,q.y+3);
+    ctx.restore();
+  }
   if(S.show.axes){
     const o=V(B.min.x,B.min.y,B.min.z),L=B.R*0.55,A=T(proj(o,s));
     ctx.save();ctx.strokeStyle=ACC;ctx.lineWidth=1.2;ctx.globalAlpha=0.8;
     ctx.font="10px ui-monospace,monospace";ctx.fillStyle=ACC;
-    for(const [nm,d] of [["X",V(L,0,0)],["Y",V(0,L,0)],["Z",V(0,0,L)]]){
-      const Bp=T(proj(add(o,d),s));
+    for(const [nm,d] of AXES){
+      const Bp=T(proj(add(o,mul(d,L)),s));
       ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(Bp.x,Bp.y);ctx.stroke();
       ctx.fillText(nm,Bp.x+3,Bp.y+3);
     }
@@ -718,8 +805,13 @@ function updateReadout(){
     ro.innerHTML=tbl(m);
     sf.innerHTML="<b>Projectors are tilted to the plane.</b> The true face is free; the receding axis is a convention.";
   }else{
-    path="central projection — <em>not</em> a parallel projection";
-    note="Projectors converge on a station point. Increase the distance and the pencil flattens toward parallel.";
+    const sp=specPersp(S.psp,B.c);
+    const pts=AXES.filter(([nm,d])=>Math.abs(dot(d,sp.n))>0.02).length;
+    const kind=["no","one","two","three"][pts]+"-point";
+    path="central projection — <em>"+(S.psp.rev?"reverse "+kind:kind)+"</em>, not a parallel projection";
+    note=S.psp.rev
+      ? "The centre of projection sits behind the object, so the pencil diverges: what recedes grows. Icon painters used it; cameras cannot."
+      : "An axis parallel to the picture plane has no vanishing point. Turning the plane, not the eye, is what changes the count.";
     ro.innerHTML="";
     sf.innerHTML="<b>The projectors meet.</b> Parallel projection is the limiting case: an eye at infinite distance, which is an eye placed nowhere.";
   }
@@ -741,6 +833,13 @@ seg("axoPre",()=>"",v=>{
   else if(v==="di"){S.az=45;S.el=20;}
   else if(v==="tri"){S.az=62;S.el=27;}
   else {S.az=0;S.el=0;}});
+seg("pspPre",()=>"",v=>{
+  /* Presets only turn the picture plane; the count of vanishing points is a
+     consequence of that, never a setting of its own. */
+  if(v==="one"){S.psp.az=90;S.psp.el=0;S.psp.dist=7;}
+  else if(v==="two"){S.psp.az=35;S.psp.el=0;S.psp.dist=6;}
+  else {S.psp.az=35;S.psp.el=28;S.psp.dist=7;}});
+seg("pspDir",()=>S.psp.rev?"rev":"fwd",v=>{S.psp.rev=v==="rev";});
 seg("oblFace",()=>S.obl.face,v=>{S.obl.face=v;});
 seg("oblPre",()=>"",v=>{
   if(v==="cav"){S.obl.face="front";S.obl.alpha=45;S.obl.L=1;}
@@ -764,6 +863,8 @@ bindRange("paz",()=>S.psp.az,v=>S.psp.az=v,v=>v.toFixed(1)+"°","pazV");
 bindRange("pel",()=>S.psp.el,v=>S.psp.el=v,v=>v.toFixed(1)+"°","pelV");
 bindRange("unfold",()=>S.mv.unfold,v=>S.mv.unfold=v,v=>Math.round(v*100)+"%","unfoldV");
 
+{const el=document.getElementById("pspVP");el.checked=S.psp.vp;
+ el.addEventListener("change",()=>{S.psp.vp=el.checked;render();});}
 [["sProj","proj"],["sPlane","plane"],["sBox","box"],["sAxes","axes"]].forEach(([id,k])=>{
   const el=document.getElementById(id);el.checked=S.show[k];
   el.addEventListener("change",()=>{S.show[k]=el.checked;render();});});
